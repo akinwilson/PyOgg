@@ -3,6 +3,7 @@ import ctypes
 from . import opus
 from .pyogg_error import PyOggError
 
+
 class OpusDecoder:
     def __init__(self):
         self._decoder = None
@@ -20,7 +21,6 @@ class OpusDecoder:
     #
 
     def set_channels(self, n):
-
         """Set the number of channels.
 
         n must be either 1 or 2.
@@ -32,15 +32,14 @@ class OpusDecoder:
         if self._decoder is None:
             if n < 0 or n > 2:
                 raise PyOggError(
-                    "Invalid number of channels in call to "+
-                    "set_channels()"
+                    "Invalid number of channels in call to " + "set_channels()"
                 )
             self._channels = n
         else:
             raise PyOggError(
-                "Cannot change the number of channels after "+
-                "the decoder was created.  Perhaps "+
-                "set_channels() was called after decode()?"
+                "Cannot change the number of channels after "
+                + "the decoder was created.  Perhaps "
+                + "set_channels() was called after decode()?"
             )
         self._create_pcm_buffer()
 
@@ -64,22 +63,20 @@ class OpusDecoder:
                 self._samples_per_second = samples_per_second
             else:
                 raise PyOggError(
-                    "Specified sampling frequency "+
-                    "({:d}) ".format(samples_per_second)+
-                    "was not one of the accepted values"
+                    "Specified sampling frequency "
+                    + "({:d}) ".format(samples_per_second)
+                    + "was not one of the accepted values"
                 )
         else:
             raise PyOggError(
-                "Cannot change the sampling frequency after "+
-                "the decoder was created.  Perhaps "+
-                "set_sampling_frequency() was called after decode()?"
+                "Cannot change the sampling frequency after "
+                + "the decoder was created.  Perhaps "
+                + "set_sampling_frequency() was called after decode()?"
             )
         self._create_pcm_buffer()
 
     def decode(self, encoded_bytes: memoryview):
-        """Decodes an Opus-encoded packet into PCM.
-
-        """
+        """Decodes an Opus-encoded packet into PCM."""
         # If we haven't already created a decoder, do so now
         if self._decoder is None:
             self._decoder = self._create_decoder()
@@ -87,18 +84,15 @@ class OpusDecoder:
         # Create a ctypes array from the memoryview (without copying
         # data)
         Buffer = ctypes.c_char * len(encoded_bytes)
-        encoded_bytes_ctypes = Buffer.from_buffer(encoded_bytes)
-            
+        encoded_bytes_ctypes = Buffer.from_buffer_copy(encoded_bytes)
+
         # Create pointer to encoded bytes
         encoded_bytes_ptr = ctypes.cast(
-            encoded_bytes_ctypes,
-            ctypes.POINTER(ctypes.c_ubyte)
+            encoded_bytes_ctypes, ctypes.POINTER(ctypes.c_ubyte)
         )
 
         # Store length of encoded bytes into int32
-        len_int32 = opus.opus_int32(
-            len(encoded_bytes)
-        )
+        len_int32 = opus.opus_int32(len(encoded_bytes))
 
         # Check that we have a PCM buffer
         if self._pcm_buffer is None:
@@ -111,38 +105,33 @@ class OpusDecoder:
             len_int32,
             self._pcm_buffer_ptr,
             self._pcm_buffer_size_int,
-            0 # TODO: What's Forward Error Correction about?
+            0,  # TODO: What's Forward Error Correction about?
         )
 
         # Check for any errors
         if result < 0:
             raise PyOggError(
-                "An error occurred while decoding an Opus-encoded "+
-                "packet: "+
-                opus.opus_strerror(result).decode("utf")
+                "An error occurred while decoding an Opus-encoded "
+                + "packet: "
+                + opus.opus_strerror(result).decode("utf")
             )
 
         # Extract just the valid data as bytes
-        end_valid_data = (
-            result
-            * ctypes.sizeof(opus.opus_int16)
-            * self._channels
-        )
-        
+        end_valid_data = result * ctypes.sizeof(opus.opus_int16) * self._channels
+
         # Create memoryview of PCM buffer to avoid copying data during slice.
         mv = memoryview(self._pcm_buffer)
-        
+
         # Cast memoryview to chars
-        mv = mv.cast('c')
-        
+        mv = mv.cast("c")
+
         # Slice memoryview to extract only valid data
         mv = mv[:end_valid_data]
-        
+
         return mv
 
-
     def decode_missing_packet(self, frame_duration):
-        """ Obtain PCM data despite missing a frame.
+        """Obtain PCM data despite missing a frame.
 
         frame_duration is in milliseconds.
 
@@ -150,17 +139,15 @@ class OpusDecoder:
 
         # Consider frame duration in units of 0.1ms in order to
         # avoid floating-point comparisons.
-        if int(frame_duration*10) not in [25, 50, 100, 200, 400, 600]:
+        if int(frame_duration * 10) not in [25, 50, 100, 200, 400, 600]:
             raise PyOggError(
-                "Frame duration ({:f}) is not one of the accepted values".format(frame_duration)
+                "Frame duration ({:f}) is not one of the accepted values".format(
+                    frame_duration
+                )
             )
 
         # Calculate frame size
-        frame_size = int(
-            frame_duration
-            * self._samples_per_second
-            // 1000
-        )
+        frame_size = int(frame_duration * self._samples_per_second // 1000)
 
         # Store frame size as int
         frame_size_int = ctypes.c_int(frame_size)
@@ -172,23 +159,19 @@ class OpusDecoder:
             0,
             self._pcm_buffer_ptr,
             frame_size_int,
-            0 # TODO: What is this Forward Error Correction about?
+            0,  # TODO: What is this Forward Error Correction about?
         )
 
         # Check for any errors
         if result < 0:
             raise PyOggError(
-                "An error occurred while decoding an Opus-encoded "+
-                "packet: "+
-                opus.opus_strerror(result).decode("utf")
+                "An error occurred while decoding an Opus-encoded "
+                + "packet: "
+                + opus.opus_strerror(result).decode("utf")
             )
 
         # Extract just the valid data as bytes
-        end_valid_data = (
-            result
-            * ctypes.sizeof(opus.opus_int16)
-            * self._channels
-        )
+        end_valid_data = result * ctypes.sizeof(opus.opus_int16) * self._channels
         return bytes(self._pcm_buffer)[:end_valid_data]
 
     #
@@ -196,20 +179,18 @@ class OpusDecoder:
     #
 
     def _create_pcm_buffer(self):
-        if (self._samples_per_second is None
-            or self._channels is None):
+        if self._samples_per_second is None or self._channels is None:
             # We cannot define the buffer yet
             return
 
         # Create buffer to hold 120ms of samples.  See "opus_decode()" at
         # https://opus-codec.org/docs/opus_api-1.3.1/group__opus__decoder.html
-        max_duration = 120 # milliseconds
+        max_duration = 120  # milliseconds
         max_samples = max_duration * self._samples_per_second // 1000
         PCMBuffer = opus.opus_int16 * (max_samples * self._channels)
         self._pcm_buffer = PCMBuffer()
-        self._pcm_buffer_ptr = (
-            ctypes.cast(ctypes.pointer(self._pcm_buffer),
-                        ctypes.POINTER(opus.opus_int16))
+        self._pcm_buffer_ptr = ctypes.cast(
+            ctypes.pointer(self._pcm_buffer), ctypes.POINTER(opus.opus_int16)
         )
 
         # Store samples per channel in an int
@@ -224,9 +205,9 @@ class OpusDecoder:
         # Check that the sampling frequency has been defined
         if self._samples_per_second is None:
             raise PyOggError(
-                "The sampling frequency was not specified before "+
-                "attempting to create an Opus decoder.  Perhaps "+
-                "decode() was called before set_sampling_frequency()?"
+                "The sampling frequency was not specified before "
+                + "attempting to create an Opus decoder.  Perhaps "
+                + "decode() was called before set_sampling_frequency()?"
             )
 
         # The sampling frequency must be passed in as a 32-bit int
@@ -235,16 +216,16 @@ class OpusDecoder:
         # Check that the number of channels has been defined
         if self._channels is None:
             raise PyOggError(
-                "The number of channels were not specified before "+
-                "attempting to create an Opus decoder.  Perhaps "+
-                "decode() was called before set_channels()?"
+                "The number of channels were not specified before "
+                + "attempting to create an Opus decoder.  Perhaps "
+                + "decode() was called before set_channels()?"
             )
 
         # The number of channels must also be passed in as a 32-bit int
         channels = opus.opus_int32(self._channels)
 
         # Obtain the number of bytes of memory required for the decoder
-        size = opus.opus_decoder_get_size(channels);
+        size = opus.opus_decoder_get_size(channels)
 
         # Allocate the required memory for the decoder
         memory = ctypes.create_string_buffer(size)
@@ -255,18 +236,14 @@ class OpusDecoder:
         decoder = ctypes.cast(memory, ctypes.POINTER(opus.OpusDecoder))
 
         # Initialise the decoder
-        error = opus.opus_decoder_init(
-            decoder,
-            samples_per_second,
-            channels
-        );
+        error = opus.opus_decoder_init(decoder, samples_per_second, channels)
 
         # Check that there hasn't been an error when initialising the
         # decoder
         if error != opus.OPUS_OK:
             raise PyOggError(
-                "An error occurred while creating the decoder: "+
-                opus.opus_strerror(error).decode("utf")
+                "An error occurred while creating the decoder: "
+                + opus.opus_strerror(error).decode("utf")
             )
 
         # Return our newly-created decoder
